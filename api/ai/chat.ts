@@ -1,21 +1,12 @@
-import { GoogleGenAI } from '@google/genai';
 import {
   sanitizeModel,
   MODEL_PERSONAS,
+  getBAIKey,
   executeLocalTool,
   detectToolIntent,
   buildKeywordFallback,
-  findActiveSkillsTool,
-  getSkillDetailsTool,
-  createSkillForUserTool,
-  navigatePlatformTool,
+  runBAIAssistant,
 } from '../../_lib/swapAI';
-
-function getGemini(): GoogleGenAI | null {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) return null;
-  return new GoogleGenAI({ apiKey: key });
-}
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
@@ -27,6 +18,7 @@ export default async function handler(req: any, res: any) {
   try {
     const {
       message,
+      history = [],
       currentUserName = 'Artisan',
       availableSkills = [],
       model = 'hy3',
@@ -67,77 +59,34 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const gemini = getGemini();
-    if (gemini) {
+    const baiKey = getBAIKey();
+    if (baiKey) {
       try {
-        const chat = gemini.chats.create({
-          model: 'gemini-2.5-flash',
-          config: {
-            systemInstruction:
-              `You are the SwapCraft AI Concierge (${persona.name}), an intelligent assistant specialized in ${persona.focus}.\n` +
-              `SwapCraft is a zero-money, community-driven skill swap and knowledge exchange platform.\n` +
-              `Identify purely as the SwapCraft AI Concierge (${persona.name}).\n` +
-              `Current user: "${currentUserName}".\n` +
-              `Use Markdown formatting with headings (###), bullet points, and bold text for recommendations.\n` +
-              `Always prioritize using the find_active_skills tool whenever the user asks about available skills, learning opportunities, or taking part in crafts.\n` +
-              `Use create_skill_for_user when the user wants to upload, create, or add a skill to their account.\n` +
-              `Use navigate_platform to guide them to pages like /discover, /matchmaker, /community, /messages, /my-swaps, /credits, /profile.`,
-            tools: [{ functionDeclarations: [findActiveSkillsTool, getSkillDetailsTool, createSkillForUserTool, navigatePlatformTool] }],
-          },
+        const result = await runBAIAssistant(baiKey, {
+          model: selectedModel,
+          message,
+          history,
+          currentUserName,
+          availableSkills,
         });
-
-        const geminiRes = await chat.sendMessage({ message });
-        const functionCalls = geminiRes.functionCalls;
-
-        if (functionCalls && functionCalls.length > 0) {
-          const call = functionCalls[0];
-          const toolExec = executeLocalTool(call.name, call.args, availableSkills);
-
-          const turn2 = await chat.sendMessage({
-            message: [
-              {
-                functionResponse: {
-                  name: call.name,
-                  response: { result: toolExec.toolCall.data, summary: toolExec.toolCall.resultSummary },
-                },
-              },
-            ],
-          });
-
-          res.json({
-            reply: turn2.text || toolExec.markdownReply,
-            thinking:
-              `• [${persona.name}]: Executed function \`${call.name}\`\n` +
-              `• Scanned platform database for active listings\n` +
-              `• Generated structured Markdown guidance`,
-            thinkingDurationMs: Date.now() - startTime,
-            model: selectedModel,
-            toolCalls: [toolExec.toolCall],
-            suggestedSkillIds: toolExec.matchedSkillIds,
-            actions: [
-              { label: '🔍 Browse All Skills', type: 'navigate', path: '/discover' },
-              { label: '🎯 Try Smart Matchmaker', type: 'navigate', path: '/matchmaker' },
-            ],
-          });
-          return;
-        }
-
-        if (geminiRes.text) {
-          res.json({
-            reply: geminiRes.text,
-            thinking: `• [${persona.name}]: Analyzed query and crafted community exchange response.`,
-            thinkingDurationMs: Date.now() - startTime,
-            model: selectedModel,
-            suggestedSkillIds: [],
-            actions: [
-              { label: '🔍 Browse All Skills', type: 'navigate', path: '/discover' },
-              { label: '🎯 Try Smart Matchmaker', type: 'navigate', path: '/matchmaker' },
-            ],
-          });
-          return;
-        }
-      } catch (geminiErr: any) {
-        console.warn('Gemini chat execution fallback:', geminiErr?.message);
+        res.json({
+          reply: result.reply,
+          thinking:
+            `• [${persona.name} — ${persona.persona}]: Answered via B.AI (${selectedModel})\n` +
+            (result.toolCalls.length > 0
+              ? `• Executed ${result.toolCalls.map((t) => `\`${t.name}\``).join(', ')}\n`
+              : `• Direct answer, no tool call needed\n`) +
+            `• Scanned platform database for active listings`,
+          thinkingDurationMs: Date.now() - startTime,
+          model: selectedModel,
+          toolCalls: result.toolCalls,
+          suggestedSkillIds: result.suggestedSkillIds,
+          proposedSkill: result.proposedSkill,
+          actions: result.actions,
+        });
+        return;
+      } catch (baiErr: any) {
+        console.warn('B.AI chat execution fallback:', baiErr?.message);
       }
     }
 

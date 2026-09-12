@@ -1,4 +1,9 @@
-import { FunctionDeclaration, Type } from '@google/genai';
+export const BAI_BASE_URL = 'https://api.b.ai/v1';
+
+export function getBAIKey(): string | null {
+  const key = process.env.BAI_API_KEY;
+  return key && key.trim() ? key.trim() : null;
+}
 
 export interface PlatformSkill {
   id: string;
@@ -65,89 +70,389 @@ export const MODEL_PERSONAS: Record<SupportedModel, { name: string; persona: str
   },
 };
 
-export const findActiveSkillsTool: FunctionDeclaration = {
-  name: 'find_active_skills',
-  description:
-    'Search and find active skill listings on SwapCraft that the user can take part in, learn, or swap with. Filters by query, category, format (Online/In-Person/Hybrid), and experience level.',
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      query: {
-        type: Type.STRING,
-        description: 'Keywords to search across skills (e.g. "cooking", "sourdough", "react", "pottery", "japanese", "guitar")',
-      },
-      category: {
-        type: Type.STRING,
-        description:
-          'Optional category filter: Technology, Culinary Arts, Visual Arts, Languages, Wellness & Fitness, Music & Audio, Crafts & DIY, Business & Writing',
-      },
-      format: {
-        type: Type.STRING,
-        description: 'Optional format filter: In-Person, Online, Hybrid, Flexible',
-      },
-      level: {
-        type: Type.STRING,
-        description: 'Optional experience level filter: All Levels, Beginner, Intermediate, Advanced',
+export interface OpenAITool {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, any>;
+  };
+}
+
+export const findActiveSkillsTool: OpenAITool = {
+  type: 'function',
+  function: {
+    name: 'find_active_skills',
+    description:
+      'Search and find active skill listings on SwapCraft that the user can take part in, learn, or swap with. Filters by query, category, format (Online/In-Person/Hybrid), and experience level.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Keywords to search across skills (e.g. "cooking", "sourdough", "react", "pottery", "japanese", "guitar")',
+        },
+        category: {
+          type: 'string',
+          description:
+            'Optional category filter: Technology, Culinary Arts, Visual Arts, Languages, Wellness & Fitness, Music & Audio, Crafts & DIY, Business & Writing',
+        },
+        format: {
+          type: 'string',
+          description: 'Optional format filter: In-Person, Online, Hybrid, Flexible',
+        },
+        level: {
+          type: 'string',
+          description: 'Optional experience level filter: All Levels, Beginner, Intermediate, Advanced',
+        },
       },
     },
   },
 };
 
-export const getSkillDetailsTool: FunctionDeclaration = {
-  name: 'get_skill_details',
-  description: 'Retrieve full details, syllabus, and artisan profile for a specific skill listing ID.',
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      skillId: {
-        type: Type.STRING,
-        description: 'The unique skill ID (e.g. "skill-1")',
+export const getSkillDetailsTool: OpenAITool = {
+  type: 'function',
+  function: {
+    name: 'get_skill_details',
+    description: 'Retrieve full details, syllabus, and artisan profile for a specific skill listing ID from the registry below.',
+    parameters: {
+      type: 'object',
+      properties: {
+        skillId: {
+          type: 'string',
+          description: 'The unique skill ID (e.g. "skill-1")',
+        },
       },
+      required: ['skillId'],
     },
-    required: ['skillId'],
   },
 };
 
-export const createSkillForUserTool: FunctionDeclaration = {
-  name: 'create_skill_for_user',
-  description: 'Draft and create a complete skill listing for the user account so they can publish it with one click.',
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      title: { type: Type.STRING, description: 'Clear title of the skill (e.g. "Hands-on Sourdough Bread Baking")' },
-      category: {
-        type: Type.STRING,
-        description:
-          'Category: Technology, Culinary Arts, Visual Arts, Languages, Wellness & Fitness, Music & Audio, Crafts & DIY, Business & Writing',
+export const createSkillForUserTool: OpenAITool = {
+  type: 'function',
+  function: {
+    name: 'create_skill_for_user',
+    description: 'Draft and create a complete skill listing for the user account so they can publish it with one click.',
+    parameters: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Clear title of the skill (e.g. "Hands-on Sourdough Bread Baking")' },
+        category: {
+          type: 'string',
+          description:
+            'Category: Technology, Culinary Arts, Visual Arts, Languages, Wellness & Fitness, Music & Audio, Crafts & DIY, Business & Writing',
+        },
+        offerSkill: { type: 'string', description: 'Specific craft or skill offered' },
+        offerDescription: { type: 'string', description: 'Detailed description of what the user will teach' },
+        wantSkill: { type: 'string', description: 'What skill the user wants in return' },
+        level: { type: 'string', description: 'Beginner Friendly, Intermediate, or Advanced' },
+        format: { type: 'string', description: 'Online, In-Person, or Hybrid' },
+        sessionDuration: { type: 'string', description: 'e.g. "45 mins", "60 mins", "90 mins"' },
+        emoji: { type: 'string', description: 'A single relevant emoji for the skill' },
       },
-      offerSkill: { type: Type.STRING, description: 'Specific craft or skill offered' },
-      offerDescription: { type: Type.STRING, description: 'Detailed description of what the user will teach' },
-      wantSkill: { type: Type.STRING, description: 'What skill the user wants in return' },
-      level: { type: Type.STRING, description: 'Beginner Friendly, Intermediate, or Advanced' },
-      format: { type: Type.STRING, description: 'Online, In-Person, or Hybrid' },
-      sessionDuration: { type: Type.STRING, description: 'e.g. "45 mins", "60 mins", "90 mins"' },
-      emoji: { type: Type.STRING, description: 'A single relevant emoji for the skill' },
+      required: ['title', 'category', 'offerSkill', 'offerDescription', 'wantSkill'],
     },
-    required: ['title', 'category', 'offerSkill', 'offerDescription', 'wantSkill'],
   },
 };
 
-export const navigatePlatformTool: FunctionDeclaration = {
-  name: 'navigate_platform',
-  description:
-    'Help the user navigate to specific sections of SwapCraft (discover, matchmaker, circles, messages, swaps, credits, profile).',
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      destination: {
-        type: Type.STRING,
-        description: 'Destination route: /discover, /matchmaker, /community, /messages, /my-swaps, /credits, /profile',
+export const navigatePlatformTool: OpenAITool = {
+  type: 'function',
+  function: {
+    name: 'navigate_platform',
+    description:
+      'Help the user navigate to specific sections of SwapCraft (discover, matchmaker, circles, messages, swaps, credits, profile).',
+    parameters: {
+      type: 'object',
+      properties: {
+        destination: {
+          type: 'string',
+          description: 'Destination route: /discover, /matchmaker, /community, /messages, /my-swaps, /credits, /profile',
+        },
+        reason: { type: 'string', description: 'Explanation of why this page helps the user' },
       },
-      reason: { type: Type.STRING, description: 'Explanation of why this page helps the user' },
+      required: ['destination'],
     },
-    required: ['destination'],
   },
 };
+
+export const BAI_TOOLS: OpenAITool[] = [
+  findActiveSkillsTool,
+  getSkillDetailsTool,
+  createSkillForUserTool,
+  navigatePlatformTool,
+];
+
+export function buildSystemPrompt(
+  personaName: string,
+  personaFocus: string,
+  currentUserName: string,
+  availableSkills: PlatformSkill[]
+): string {
+  const registry = availableSkills
+    .slice(0, 20)
+    .map(
+      (s) =>
+        `- ${s.id} | ${s.title} (${s.category}, ${s.format}, ${s.level}) — teaches ${s.offerSkill}; wants ${s.wantSkill} — mentor ${s.user?.name || 'Artisan'}`
+    )
+    .join('\n');
+
+  return (
+    `You are the SwapCraft AI Concierge (${personaName}), specialized in ${personaFocus}.\n` +
+    `SwapCraft is a zero-money, community-driven skill swap platform. Current user: "${currentUserName}".\n` +
+    `Use Markdown (### headings, bullets, bold). Keep answers concise and actionable.\n` +
+    `Use find_active_skills when the user asks about available skills or learning opportunities. ` +
+    `Use get_skill_details when they ask about a specific listing. ` +
+    `Use create_skill_for_user when they want to publish a skill. ` +
+    `Use navigate_platform to point them at app pages (/discover, /matchmaker, /community, /messages, /my-swaps, /credits, /profile).\n` +
+    `Live skill registry (reference exact IDs when recommending):\n${registry || '(no listings yet)'}\n` +
+    `SwapCraft is 100% money-free: 1 hour taught = 1 Karma Credit = 1 hour of learning.`
+  );
+}
+
+export interface BAIMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string;
+  tool_calls?: any[];
+  tool_call_id?: string;
+  name?: string;
+}
+
+export interface BAIChatResult {
+  text: string;
+  toolCalls: { id: string; name: string; args: any }[];
+}
+
+async function parseBAIResponse(res: Response): Promise<any> {
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`B.AI request failed (${res.status}): ${body.slice(0, 200)}`);
+  }
+  return res.json();
+}
+
+export async function callBAIChat(
+  apiKey: string,
+  opts: { model: string; messages: BAIMessage[]; tools?: OpenAITool[]; maxTokens?: number }
+): Promise<BAIChatResult> {
+  const res = await fetch(`${BAI_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: opts.model,
+      messages: opts.messages,
+      tools: opts.tools,
+      max_tokens: opts.maxTokens ?? 1024,
+    }),
+  });
+  const data = await parseBAIResponse(res);
+  const choice = data.choices?.[0];
+  const msg = choice?.message ?? {};
+  const toolCalls = (msg.tool_calls ?? []).map((tc: any) => ({
+    id: tc.id || `tool_${Date.now()}`,
+    name: tc.function?.name || '',
+    args: safeParseArgs(tc.function?.arguments),
+  }));
+  return { text: msg.content || '', toolCalls };
+}
+
+function safeParseArgs(raw: any): any {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+export async function streamBAIChat(
+  apiKey: string,
+  opts: {
+    model: string;
+    messages: BAIMessage[];
+    tools?: OpenAITool[];
+    maxTokens?: number;
+    onDelta: (text: string) => void;
+  }
+): Promise<{ text: string; toolCalls: { id: string; name: string; args: any }[] }> {
+  const res = await fetch(`${BAI_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: opts.model,
+      messages: opts.messages,
+      tools: opts.tools,
+      stream: true,
+      max_tokens: opts.maxTokens ?? 1024,
+    }),
+  });
+  if (!res.ok || !res.body) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`B.AI stream failed (${res.status}): ${body.slice(0, 200)}`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let text = '';
+  const toolCallParts: Record<number, { id: string; name: string; args: string }> = {};
+
+  const flush = (chunk: string) => {
+    buffer += chunk;
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+      const payload = trimmed.replace(/^data:\s*/, '');
+      if (payload === '[DONE]') continue;
+      try {
+        const evt = JSON.parse(payload);
+        const delta = evt.choices?.[0]?.delta;
+        if (!delta) continue;
+        if (typeof delta.content === 'string' && delta.content) {
+          text += delta.content;
+          opts.onDelta(delta.content);
+        }
+        for (const tc of delta.tool_calls ?? []) {
+          const idx = tc.index ?? 0;
+          const slot = (toolCallParts[idx] = toolCallParts[idx] || { id: '', name: '', args: '' });
+          if (tc.id) slot.id = tc.id;
+          if (tc.function?.name) slot.name += tc.function.name;
+          if (tc.function?.arguments) slot.args += tc.function.arguments;
+        }
+      } catch {
+        // ignore partial chunks
+      }
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    flush(decoder.decode(value, { stream: true }));
+  }
+  flush(decoder.decode());
+
+  const toolCalls = Object.values(toolCallParts)
+    .filter((t) => t.name)
+    .map((t) => ({ id: t.id || `tool_${Date.now()}`, name: t.name, args: safeParseArgs(t.args) }));
+  return { text, toolCalls };
+}
+
+export function historyToMessages(history: { sender: string; text: string }[]): BAIMessage[] {
+  return history
+    .filter((m) => m && typeof m.text === 'string' && m.text.trim())
+    .slice(-12)
+    .map((m) => ({
+      role: m.sender === 'user' ? ('user' as const) : ('assistant' as const),
+      content: m.text.slice(0, 2000),
+    }));
+}
+
+export function matchSkillsForQuery(query: string, availableSkills: PlatformSkill[], limit = 3): string[] {
+  const q = query.toLowerCase();
+  const words = q.split(/\s+/).filter((w) => w.length > 2);
+  const scored = availableSkills.map((s) => {
+    const text = `${s.id} ${s.title} ${s.category} ${s.offerSkill} ${s.wantSkill}`.toLowerCase();
+    let score = 0;
+    for (const w of words) if (text.includes(w)) score += 1;
+    return { id: s.id, score };
+  });
+  return scored
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((s) => s.id);
+}
+
+const DEFAULT_ACTIONS = [
+  { label: '🔍 Browse All Skills', type: 'navigate', path: '/discover' },
+  { label: '🎯 Try Smart Matchmaker', type: 'navigate', path: '/matchmaker' },
+  { label: '✨ Post Your Own Skill', type: 'open_modal', payload: 'post_skill' },
+];
+
+export interface AssistantResult {
+  reply: string;
+  toolCalls: ToolCallRecord[];
+  suggestedSkillIds: string[];
+  proposedSkill?: any;
+  actions: any[];
+}
+
+export async function runBAIAssistant(
+  apiKey: string,
+  opts: {
+    model: SupportedModel;
+    message: string;
+    history?: { sender: string; text: string }[];
+    currentUserName?: string;
+    availableSkills?: PlatformSkill[];
+  }
+): Promise<AssistantResult> {
+  const skills = opts.availableSkills ?? [];
+  const persona = MODEL_PERSONAS[opts.model];
+  const system = buildSystemPrompt(persona.name, persona.focus, opts.currentUserName || 'Artisan', skills);
+  const messages: BAIMessage[] = [
+    { role: 'system', content: system },
+    ...historyToMessages(opts.history ?? []),
+    { role: 'user', content: opts.message },
+  ];
+
+  const first = await callBAIChat(apiKey, { model: opts.model, messages, tools: BAI_TOOLS });
+
+  if (first.toolCalls.length === 0) {
+    return {
+      reply: first.text,
+      toolCalls: [],
+      suggestedSkillIds: matchSkillsForQuery(opts.message, skills),
+      actions: DEFAULT_ACTIONS,
+    };
+  }
+
+  const executed: ToolCallRecord[] = [];
+  const toolMessages: BAIMessage[] = [];
+  let matchedSkillIds: string[] = [];
+  let proposedSkill: any;
+  let actions: any[] = DEFAULT_ACTIONS;
+
+  for (const tc of first.toolCalls) {
+    const exec = executeLocalTool(tc.name, tc.args, skills);
+    executed.push(exec.toolCall);
+    matchedSkillIds = [...matchedSkillIds, ...exec.matchedSkillIds];
+    if ((exec as any).proposedSkill) proposedSkill = (exec as any).proposedSkill;
+    if ((exec as any).actions) actions = (exec as any).actions;
+    toolMessages.push({
+      role: 'assistant',
+      content: '',
+      tool_calls: [{ id: tc.id, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.args) } }],
+    });
+    toolMessages.push({
+      role: 'tool',
+      content: JSON.stringify({ summary: exec.toolCall.resultSummary, data: exec.toolCall.data }).slice(0, 4000),
+      tool_call_id: tc.id,
+    });
+  }
+
+  const second = await callBAIChat(apiKey, {
+    model: opts.model,
+    messages: [...messages, ...toolMessages],
+  });
+
+  return {
+    reply: second.text || executed.map((e) => e.resultSummary).join('\n'),
+    toolCalls: executed,
+    suggestedSkillIds: [...new Set(matchedSkillIds)],
+    proposedSkill,
+    actions,
+  };
+}
 
 export function executeLocalTool(toolName: string, args: any, availableSkills: PlatformSkill[]): ToolExecResult {
   const toolId = `tool_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -242,6 +547,54 @@ Click on any listing card below to inspect the full syllabus, verify availabilit
       },
       matchedSkillIds,
       markdownReply,
+    };
+  }
+
+  if (toolName === 'get_skill_details') {
+    const skillId = String(args?.skillId || '').trim();
+    const skill = availableSkills.find((s) => s.id === skillId);
+    if (!skill) {
+      return {
+        toolCall: {
+          id: toolId,
+          name: 'get_skill_details',
+          arguments: args || {},
+          status: 'completed',
+          resultSummary: `No listing found with ID "${skillId}".`,
+          data: { status: 'not_found', skillId },
+        },
+        matchedSkillIds: [],
+        markdownReply: `I couldn't find a listing with ID \`${skillId}\`. Try browsing the Discover page for what's currently available!`,
+      };
+    }
+    const topics = (skill.offerTopics || []).map((t) => `  * 🔹 *${t}*`).join('\n');
+    return {
+      toolCall: {
+        id: toolId,
+        name: 'get_skill_details',
+        arguments: args || {},
+        status: 'completed',
+        resultSummary: `Retrieved details for "${skill.title}".`,
+        data: {
+          id: skill.id,
+          title: skill.title,
+          category: skill.category,
+          instructor: skill.user?.name,
+          teaches: skill.offerSkill,
+          wants: skill.wantSkill,
+          format: skill.format,
+          level: skill.level,
+        },
+      },
+      matchedSkillIds: [skill.id],
+      markdownReply: `### ${skill.title}
+
+* Mentor: **${skill.user?.name || 'Artisan'}**${skill.user?.rating ? ` (★ ${skill.user.rating})` : ''}
+* \`${skill.category}\` • *${skill.format}* • *${skill.level}* • *${skill.sessionDuration || '60 min'}*
+* **Teaches:** ${skill.offerDescription || skill.offerSkill}
+${topics ? `* **Syllabus:**\n${topics}\n` : ''}* **Seeks in Exchange:** ${skill.wantSkill}
+
+Click the card below to propose a swap or message the mentor directly!`,
     };
   }
 

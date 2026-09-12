@@ -3,17 +3,20 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
-import { GoogleGenAI } from '@google/genai';
 import {
-  findActiveSkillsTool,
-  getSkillDetailsTool,
-  createSkillForUserTool,
-  navigatePlatformTool,
   sanitizeModel,
   MODEL_PERSONAS,
+  getBAIKey,
   executeLocalTool,
   detectToolIntent,
   buildKeywordFallback,
+  buildSystemPrompt,
+  historyToMessages,
+  matchSkillsForQuery,
+  runBAIAssistant,
+  streamBAIChat,
+  callBAIChat,
+  BAI_TOOLS,
 } from './api/_lib/swapAI';
 
 dotenv.config();
@@ -30,17 +33,6 @@ app.use(express.json());
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
-
-// Lazy Gemini client initialization
-let geminiClient: GoogleGenAI | null = null;
-function getGeminiClient(): GoogleGenAI | null {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) return null;
-  if (!geminiClient) {
-    geminiClient = new GoogleGenAI({ apiKey: key });
-  }
-  return geminiClient;
-}
 
 // Chat assistant endpoint
 app.post('/api/ai/chat', async (req, res) => {
@@ -87,79 +79,38 @@ app.post('/api/ai/chat', async (req, res) => {
       });
     }
 
-    // Gemini with function calling
-    const gemini = getGeminiClient();
-    if (gemini) {
+    // B.AI with function calling
+    const baiKey = getBAIKey();
+    if (baiKey) {
       try {
-        const chat = gemini.chats.create({
-          model: 'gemini-2.5-flash',
-          config: {
-            systemInstruction: `You are the SwapCraft AI Concierge (${persona.name}), an intelligent assistant specialized in ${persona.focus}.
-SwapCraft is a zero-money, community-driven skill swap and knowledge exchange platform.
-Never mention backend platform providers (B.AI, OpenAI, Google, etc.). Identify purely as the SwapCraft AI Concierge (${persona.name}).
-Current user: "${currentUserName}".
-Use Markdown formatting with headings (###), bullet points, and bold text for recommendations.
-Always prioritize using the find_active_skills tool whenever the user asks about available skills, learning opportunities, or taking part in crafts.
-Use create_skill_for_user when the user wants to upload, create, or add a skill to their account.
-Use navigate_platform to guide them to pages like /discover, /matchmaker, /community, /messages, /my-swaps, /credits, /profile.`,
-            tools: [{ functionDeclarations: [findActiveSkillsTool, getSkillDetailsTool, createSkillForUserTool, navigatePlatformTool] }],
-          },
+        const result = await runBAIAssistant(baiKey, {
+          model: selectedModel,
+          message,
+          history,
+          currentUserName,
+          availableSkills,
         });
-
-        const geminiRes = await chat.sendMessage({ message });
-        const functionCalls = geminiRes.functionCalls;
-
-        if (functionCalls && functionCalls.length > 0) {
-          const call = functionCalls[0];
-          const toolExec = executeLocalTool(call.name, call.args, availableSkills);
-
-          // Return tool result to Gemini to synthesize response
-          const turn2 = await chat.sendMessage({
-            message: [
-              {
-                functionResponse: {
-                  name: call.name,
-                  response: { result: toolExec.toolCall.data, summary: toolExec.toolCall.resultSummary },
-                },
-              },
-            ],
-          });
-
-          return res.json({
-            reply: turn2.text || toolExec.markdownReply,
-            thinking: `• [${persona.name}]: Executed function \`${call.name}\`
-• Scanned platform database for active listings
-• Generated structured Markdown guidance`,
-            thinkingDurationMs: Date.now() - startTime,
-            model: selectedModel,
-            toolCalls: [toolExec.toolCall],
-            suggestedSkillIds: toolExec.matchedSkillIds,
-            actions: [
-              { label: '🔍 Browse All Skills', type: 'navigate', path: '/discover' },
-              { label: '🎯 Try Smart Matchmaker', type: 'navigate', path: '/matchmaker' },
-            ],
-          });
-        }
-
-        if (geminiRes.text) {
-          return res.json({
-            reply: geminiRes.text,
-            thinking: `• [${persona.name}]: Analyzed query and crafted community exchange response.`,
-            thinkingDurationMs: Date.now() - startTime,
-            model: selectedModel,
-            suggestedSkillIds: [],
-            actions: [
-              { label: '🔍 Browse All Skills', type: 'navigate', path: '/discover' },
-              { label: '🎯 Try Smart Matchmaker', type: 'navigate', path: '/matchmaker' },
-            ],
-          });
-        }
-      } catch (geminiErr: any) {
-        console.warn('Gemini chat execution fallback:', geminiErr?.message);
+        return res.json({
+          reply: result.reply,
+          thinking:
+            `• [${persona.name} — ${persona.persona}]: Answered via B.AI (${selectedModel})\n` +
+            (result.toolCalls.length > 0
+              ? `• Executed ${result.toolCalls.map((tc) => `\`${tc.name}\``).join(', ')}\n`
+              : `• Direct answer, no tool call needed\n`) +
+            `• Scanned platform database for active listings`,
+          thinkingDurationMs: Date.now() - startTime,
+          model: selectedModel,
+          toolCalls: result.toolCalls,
+          suggestedSkillIds: result.suggestedSkillIds,
+          proposedSkill: result.proposedSkill,
+          actions: result.actions,
+        });
+      } catch (baiErr: any) {
+        console.warn('B.AI chat execution fallback:', baiErr?.message);
       }
     }
 
-    // Keyword fallback when Gemini is unavailable
+    // Keyword fallback when B.AI is unavailable
     const fallback = buildKeywordFallback(message, currentUserName, availableSkills);
     return res.json({
       reply: fallback.reply,
@@ -203,6 +154,7 @@ app.post('/api/ai/chat/stream', async (req, res) => {
   try {
     const {
       message,
+      history = [],
       currentUserName = 'Artisan',
       availableSkills = [],
       model = 'hy3',
@@ -292,6 +244,104 @@ app.post('/api/ai/chat/stream', async (req, res) => {
       });
 
       return res.end();
+    }
+
+    const streamBaiKey = getBAIKey();
+    if (streamBaiKey) {
+      try {
+        const system = buildSystemPrompt(persona.name, persona.focus, currentUserName, availableSkills);
+        const baiMessages = [
+          { role: 'system' as const, content: system },
+          ...historyToMessages(history),
+          { role: 'user' as const, content: message },
+        ];
+
+        sendEvent({
+          type: 'thinking',
+          text: `• [${persona.name} — ${persona.persona}]: Processing query "${message.slice(0, 45)}"\n`,
+        });
+        sendEvent({
+          type: 'thinking',
+          text: `• Asking B.AI (${selectedModel}) for a community exchange answer\n`,
+        });
+
+        const paced = async (text: string) => {
+          const w = text.split(' ');
+          for (let i = 0; i < w.length; i++) {
+            sendEvent({ type: 'content', text: (i === 0 ? '' : ' ') + w[i] });
+            await new Promise((r) => setTimeout(r, 18));
+          }
+        };
+
+        const streamed = await streamBAIChat(streamBaiKey, {
+          model: selectedModel,
+          messages: baiMessages,
+          tools: BAI_TOOLS,
+          onDelta: (text) => sendEvent({ type: 'content', text }),
+        });
+
+        const completedToolCalls: any[] = [];
+        let matchedSkillIds: string[] = [];
+        let proposedSkill: any;
+        let streamActions: any[] | undefined;
+
+        if (streamed.toolCalls.length > 0) {
+          for (const tc of streamed.toolCalls) {
+            sendEvent({
+              type: 'tool_call',
+              toolCall: { id: tc.id, name: tc.name, arguments: tc.args, status: 'calling' },
+            });
+            const exec = executeLocalTool(tc.name, tc.args, availableSkills);
+            completedToolCalls.push(exec.toolCall);
+            matchedSkillIds = [...matchedSkillIds, ...exec.matchedSkillIds];
+            if ((exec as any).proposedSkill) proposedSkill = (exec as any).proposedSkill;
+            if ((exec as any).actions) streamActions = (exec as any).actions;
+            sendEvent({ type: 'tool_result', toolCall: exec.toolCall });
+          }
+
+          sendEvent({ type: 'thinking', text: `• Synthesizing tool results into a final answer...\n` });
+
+          const toolMessages: any[] = [];
+          for (const tc of streamed.toolCalls) {
+            const exec = completedToolCalls.find((c) => c.id === tc.id) ?? completedToolCalls[0];
+            toolMessages.push({
+              role: 'assistant',
+              content: '',
+              tool_calls: [{ id: tc.id, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.args) } }],
+            });
+            toolMessages.push({
+              role: 'tool',
+              content: JSON.stringify({ summary: exec?.resultSummary, data: exec?.data }).slice(0, 4000),
+              tool_call_id: tc.id,
+            });
+          }
+
+          const followUp = await callBAIChat(streamBaiKey, {
+            model: selectedModel,
+            messages: [...baiMessages, ...toolMessages],
+          });
+          if (followUp.text) await paced(followUp.text);
+        }
+
+        sendEvent({
+          type: 'done',
+          model: selectedModel,
+          toolCalls: completedToolCalls,
+          suggestedSkillIds:
+            matchedSkillIds.length > 0 ? [...new Set(matchedSkillIds)] : matchSkillsForQuery(message, availableSkills),
+          proposedSkill,
+          actions: streamActions || [
+            { label: '🔍 Browse All Skills', type: 'navigate', path: '/discover' },
+            { label: '🎯 Try Smart Matchmaker', type: 'navigate', path: '/matchmaker' },
+            { label: '✨ Post Your Own Skill', type: 'open_modal', payload: 'post_skill' },
+          ],
+          durationMs: Date.now() - startTime,
+        });
+        return res.end();
+      } catch (baiErr: any) {
+        console.warn('B.AI stream execution fallback:', baiErr?.message);
+        sendEvent({ type: 'thinking', text: `• B.AI unreachable, answering from the offline engine\n` });
+      }
     }
 
     // Standard dialogue stream
