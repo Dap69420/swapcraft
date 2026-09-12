@@ -6,9 +6,21 @@ import {
   detectToolIntent,
   buildKeywordFallback,
   runBAIAssistant,
-} from '../../_lib/swapAI';
+} from '../_lib/swapAI';
+
+function parseBody(req: any): any {
+  const raw = req.body;
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(String(raw));
+  } catch {
+    return {};
+  }
+}
 
 export default async function handler(req: any, res: any) {
+  try {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
     return;
@@ -22,7 +34,7 @@ export default async function handler(req: any, res: any) {
       currentUserName = 'Artisan',
       availableSkills = [],
       model = 'hy3',
-    } = req.body ?? {};
+    } = parseBody(req);
 
     if (!message || typeof message !== 'string') {
       res.status(400).json({ error: 'Message text is required' });
@@ -91,7 +103,7 @@ export default async function handler(req: any, res: any) {
     }
 
     const fallback = buildKeywordFallback(message, currentUserName, availableSkills);
-    res.json({
+    return res.json({
       reply: fallback.reply,
       thinking:
         `• [${persona.name} — ${persona.persona}]: Processing query "${message.slice(0, 45)}"\n` +
@@ -104,6 +116,9 @@ export default async function handler(req: any, res: any) {
     });
   } catch (error: any) {
     console.error('Error in /api/ai/chat handler:', error);
+  }
+
+  try {
     res.json({
       reply: "I'm here to help you navigate SwapCraft and discover incredible skills to trade! What would you like to explore?",
       thinking: 'Fallback reasoning execution: Restoring basic navigation routes.',
@@ -116,5 +131,18 @@ export default async function handler(req: any, res: any) {
         { label: '✨ Post a Skill Offer', type: 'open_modal', payload: 'post_skill' },
       ],
     });
+  } catch {
+    try {
+      res.status(500).json({ error: 'Assistant unavailable' });
+    } catch {
+      /* noop */
+    }
+  }
+  } catch {
+    try {
+      res.status(500).json({ error: 'Assistant unavailable' });
+    } catch {
+      /* noop */
+    }
   }
 }

@@ -121,10 +121,20 @@ CREATE TABLE IF NOT EXISTS public.community_circles (
 );
 
 -- Enable Row Level Security (RLS) & Public Access Policies
+-- (DROP lines make the script safe to re-run)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.skill_listings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.swap_proposals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.community_circles ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow public read profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Allow public insert/update profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Allow public read skill_listings" ON public.skill_listings;
+DROP POLICY IF EXISTS "Allow public insert/update/delete skill_listings" ON public.skill_listings;
+DROP POLICY IF EXISTS "Allow public read swap_proposals" ON public.swap_proposals;
+DROP POLICY IF EXISTS "Allow public insert/update swap_proposals" ON public.swap_proposals;
+DROP POLICY IF EXISTS "Allow public read community_circles" ON public.community_circles;
+DROP POLICY IF EXISTS "Allow public insert/update community_circles" ON public.community_circles;
 
 CREATE POLICY "Allow public read profiles" ON public.profiles FOR SELECT USING (true);
 CREATE POLICY "Allow public insert/update profiles" ON public.profiles FOR ALL USING (true);

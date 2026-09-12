@@ -10,7 +10,7 @@ import {
   streamBAIChat,
   callBAIChat,
   BAI_TOOLS,
-} from '../../../_lib/swapAI';
+} from '../../_lib/swapAI';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -21,13 +21,13 @@ export default async function handler(req: any, res: any) {
   }
 
   const startTime = Date.now();
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache, no-transform');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders?.();
-
   const sendEvent = (eventData: any) => {
-    res.write(`data: ${JSON.stringify(eventData)}\n\n`);
+    try {
+      res.write(`data: ${JSON.stringify(eventData)}\n\n`);
+    } catch {
+      // client went away; the outer catch will end the response
+      throw new Error('client-disconnected');
+    }
   };
 
   const streamTextPaced = async (text: string) => {
@@ -39,13 +39,19 @@ export default async function handler(req: any, res: any) {
   };
 
   try {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders?.();
+
+    const rawBody = req.body && typeof req.body === 'object' ? req.body : {};
     const {
       message,
       history = [],
       currentUserName = 'Artisan',
       availableSkills = [],
       model = 'hy3',
-    } = req.body ?? {};
+    } = rawBody;
 
     if (!message || typeof message !== 'string') {
       sendEvent({ type: 'error', error: 'Message text is required' });
@@ -256,7 +262,11 @@ export default async function handler(req: any, res: any) {
     res.end();
   } catch (err: any) {
     console.error('Error in /api/ai/chat/stream:', err);
-    sendEvent({ type: 'error', error: err?.message });
-    res.end();
+    try {
+      sendEvent({ type: 'error', error: err?.message === 'client-disconnected' ? 'connection closed' : err?.message });
+    } catch { /* noop */ }
+    try {
+      res.end();
+    } catch { /* noop */ }
   }
 }
