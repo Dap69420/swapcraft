@@ -2,8 +2,8 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { SkillListing, UserProfile, SwapProposal, CommunityCircle, Conversation } from '../types';
 
 const env = (import.meta as unknown as { env: Record<string, string | undefined> }).env || {};
-const supabaseUrl = env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = env.SUPABASE_URL || '';
+const supabaseAnonKey = env.SUPABASE_ANON_KEY || '';
 
 let supabaseInstance: SupabaseClient | null = null;
 
@@ -513,7 +513,7 @@ export async function saveCircleToDb(circle: CommunityCircle): Promise<boolean> 
 export async function signInWithGoogleOAuth() {
   const client = getSupabase();
   if (!client) {
-    throw new Error('Supabase is not configured yet. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in settings or env.');
+    throw new Error('Supabase is not configured yet. Set SUPABASE_URL and SUPABASE_ANON_KEY in settings or env.');
   }
   const { data, error } = await client.auth.signInWithOAuth({
     provider: 'google',

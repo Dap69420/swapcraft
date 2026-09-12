@@ -65,14 +65,14 @@ Copy `.env.example` to `.env`. All optional:
 | Variable | Purpose |
 |---|---|
 | `BAI_API_KEY` | Powers the AI Concierge via B.AI (`hy3`, `mimo-v2.5`, `glm-5.3-flash`, `qwen3.8-flash`). Without it, the offline engine answers. |
-| `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | Enables shared Postgres persistence + realtime. Without them, data stays in the browser. |
+| `SUPABASE_URL` / `SUPABASE_ANON_KEY` | Enables shared Postgres persistence + realtime. Without them, data stays in the browser. |
 
 ## Deploy to Vercel
 
 1. Push this repo to GitHub and import it in Vercel (framework preset: **Vite**).
 2. Build command `npm run build`, output directory `dist` (already set in `vercel.json`).
 3. Add environment variables in the Vercel dashboard if you want them:
-   `BAI_API_KEY`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
+   `BAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`.
 4. Deploy. Client routes fall back to `index.html`; `/api/*` is served by the
    serverless functions in `api/`.
 
