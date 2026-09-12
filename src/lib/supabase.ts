@@ -2,8 +2,10 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { SkillListing, UserProfile, SwapProposal, CommunityCircle, Conversation } from '../types';
 
 const env = (import.meta as unknown as { env: Record<string, string | undefined> }).env || {};
-const supabaseUrl = env.SUPABASE_URL || '';
-const supabaseAnonKey = env.SUPABASE_ANON_KEY || '';
+// Accept unprefixed names (Vercel-private-friendly) with fallback to the
+// legacy VITE_ names so existing deployments keep working.
+const supabaseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || '';
 
 let supabaseInstance: SupabaseClient | null = null;
 
@@ -513,7 +515,7 @@ export async function saveCircleToDb(circle: CommunityCircle): Promise<boolean> 
 export async function signInWithGoogleOAuth() {
   const client = getSupabase();
   if (!client) {
-    throw new Error('Supabase is not configured yet. Set SUPABASE_URL and SUPABASE_ANON_KEY in settings or env.');
+    throw new Error('Supabase is not configured yet. Set SUPABASE_URL and SUPABASE_ANON_KEY (or VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY) in settings or env.');
   }
   const { data, error } = await client.auth.signInWithOAuth({
     provider: 'google',
