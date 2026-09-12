@@ -6,7 +6,13 @@ import {
   detectToolIntent,
   buildKeywordFallback,
   runBAIAssistant,
-} from '../_lib/swapAI';
+} from '../lib/swapAI';
+
+function sendJson(res: any, code: number, obj: unknown) {
+  res.statusCode = code;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify(obj));
+}
 
 function parseBody(req: any): any {
   const raw = req.body;
@@ -22,7 +28,7 @@ function parseBody(req: any): any {
 export default async function handler(req: any, res: any) {
   try {
   if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' });
+    sendJson(res, 405, { error: 'Method not allowed' });
     return;
   }
 
@@ -37,7 +43,7 @@ export default async function handler(req: any, res: any) {
     } = parseBody(req);
 
     if (!message || typeof message !== 'string') {
-      res.status(400).json({ error: 'Message text is required' });
+      sendJson(res, 400, { error: 'Message text is required' });
       return;
     }
 
@@ -49,7 +55,7 @@ export default async function handler(req: any, res: any) {
       const toolExec = executeLocalTool(toolIntent.toolName, toolIntent.args, availableSkills);
       const duration = Math.max(Date.now() - startTime, 460);
 
-      res.json({
+      sendJson(res, 200, {
         reply: toolExec.markdownReply,
         thinking:
           `• [${persona.name} — ${persona.persona}]: Identified tool intent for "${message.slice(0, 40)}"\n` +
@@ -81,7 +87,7 @@ export default async function handler(req: any, res: any) {
           currentUserName,
           availableSkills,
         });
-        res.json({
+        sendJson(res, 200, {
           reply: result.reply,
           thinking:
             `• [${persona.name} — ${persona.persona}]: Answered via B.AI (${selectedModel})\n` +
@@ -103,7 +109,7 @@ export default async function handler(req: any, res: any) {
     }
 
     const fallback = buildKeywordFallback(message, currentUserName, availableSkills);
-    return res.json({
+    return sendJson(res, 200, {
       reply: fallback.reply,
       thinking:
         `• [${persona.name} — ${persona.persona}]: Processing query "${message.slice(0, 45)}"\n` +
@@ -119,7 +125,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    res.json({
+    sendJson(res, 200, {
       reply: "I'm here to help you navigate SwapCraft and discover incredible skills to trade! What would you like to explore?",
       thinking: 'Fallback reasoning execution: Restoring basic navigation routes.',
       thinkingDurationMs: 350,
@@ -133,14 +139,14 @@ export default async function handler(req: any, res: any) {
     });
   } catch {
     try {
-      res.status(500).json({ error: 'Assistant unavailable' });
+      sendJson(res, 500, { error: 'Assistant unavailable' });
     } catch {
       /* noop */
     }
   }
   } catch {
     try {
-      res.status(500).json({ error: 'Assistant unavailable' });
+      sendJson(res, 500, { error: 'Assistant unavailable' });
     } catch {
       /* noop */
     }

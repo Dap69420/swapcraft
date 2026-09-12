@@ -17,7 +17,7 @@ import {
   streamBAIChat,
   callBAIChat,
   BAI_TOOLS,
-} from './api/_lib/swapAI';
+} from './api/lib/swapAI';
 
 dotenv.config();
 

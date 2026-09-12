@@ -10,13 +10,15 @@ import {
   streamBAIChat,
   callBAIChat,
   BAI_TOOLS,
-} from '../../_lib/swapAI';
+} from '../../lib/swapAI';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' });
+    res.statusCode = 405;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Method not allowed' }));
     return;
   }
 
